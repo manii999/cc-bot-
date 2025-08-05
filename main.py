@@ -35,106 +35,78 @@ open_tickets = {}  # Dictionary to track open tickets
 list_message_id = None
 MAX_SLOTS = 10  # Maximum number of registration slots
 
-class TicketView(View):
-    def __init__(self):
-        super().__init__(timeout=None)
-        self.add_item(CreateTicketButton())
-
 class CreateTicketButton(Button):
     def __init__(self):
         super().__init__(
             style=discord.ButtonStyle.primary,
-            label="📩 Create ticket",
-            custom_id="create_ticket"
+            label="📩 Create Ticket",
+            custom_id="ticket_create_v2"  # Changed for uniqueness
         )
 
     async def callback(self, interaction: discord.Interaction):
         try:
-            user = interaction.user
-            guild = interaction.guild
-
-            if user.id in open_tickets:
+            # Check bot permissions
+            if not interaction.guild.me.guild_permissions.manage_channels:
                 await interaction.response.send_message(
-                    "You already have an open ticket!", 
+                    "❌ I need `Manage Channels` permissions!",
                     ephemeral=True
                 )
                 return
 
-            # Check if category exists or create it
-            category = discord.utils.get(guild.categories, name=TICKET_CATEGORY_NAME)
-            if not category:
-                category = await guild.create_category(TICKET_CATEGORY_NAME)
-
-            # Set permissions
-            overwrites = {
-                guild.default_role: discord.PermissionOverwrite(view_channel=False),
-                user: discord.PermissionOverwrite(view_channel=True, send_messages=True),
-            }
-            mod_role = discord.utils.get(guild.roles, name=MOD_ROLE_NAME)
-            if mod_role:
-                overwrites[mod_role] = discord.PermissionOverwrite(
-                    view_channel=True, 
-                    send_messages=True
+            # Prevent duplicate tickets
+            if interaction.user.id in open_tickets:
+                await interaction.response.send_message(
+                    "You already have an open ticket!",
+                    ephemeral=True
                 )
+                return
 
-            # Create the ticket channel
-            channel = await guild.create_text_channel(
-                name=f"ticket-{user.name}",
+            # Create ticket channel
+            category = discord.utils.get(interaction.guild.categories, name=TICKET_CATEGORY_NAME)
+            if not category:
+                category = await interaction.guild.create_category(TICKET_CATEGORY_NAME)
+
+            overwrites = {
+                interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
+                interaction.user: discord.PermissionOverwrite(view_channel=True, send_messages=True),
+            }
+            
+            mod_role = discord.utils.get(interaction.guild.roles, name=MOD_ROLE_NAME)
+            if mod_role:
+                overwrites[mod_role] = discord.PermissionOverwrite(view_channel=True, send_messages=True)
+
+            channel = await interaction.guild.create_text_channel(
+                name=f"ticket-{interaction.user.name}",
                 overwrites=overwrites,
                 category=category
             )
-            open_tickets[user.id] = channel.id
+            open_tickets[interaction.user.id] = channel.id
 
-            # Send confirmation
-            embed = discord.Embed(
-                title="📅 Support Ticket",
-                description=f"Hello {user.mention}, staff will assist you shortly.",
-                color=0x3498db
-            )
+            # Send ticket message
+            embed = discord.Embed(title="Support Ticket", description=f"Hello {interaction.user.mention}, a staff member will assist you shortly.")
             await channel.send(
-                content=user.mention,
+                content=f"{interaction.user.mention} {mod_role.mention if mod_role else ''}",
                 embed=embed,
                 view=ManageTicketView()
             )
+            
             await interaction.response.send_message(
                 f"✅ Ticket created: {channel.mention}",
                 ephemeral=True
             )
 
         except Exception as e:
-            print(f"❌ TICKET ERROR: {e}")
+            print(f"TICKET ERROR: {e}")
             await interaction.response.send_message(
-                "Failed to create ticket. The bot may lack permissions.",
+                "❌ Failed to create ticket. Please contact an admin.",
                 ephemeral=True
             )
-                return
 
-            mod_role = discord.utils.get(guild.roles, name=MOD_ROLE_NAME)
-
-            overwrites = {
-                guild.default_role: discord.PermissionOverwrite(view_channel=False),
-                user: discord.PermissionOverwrite(view_channel=True, send_messages=True),
-            }
-            if mod_role:
-                overwrites[mod_role] = discord.PermissionOverwrite(view_channel=True, send_messages=True)
-
-            category = discord.utils.get(guild.categories, name=TICKET_CATEGORY_NAME)
-            if not category:
-                category = await guild.create_category(TICKET_CATEGORY_NAME)
-
-            channel = await guild.create_text_channel(f"ticket-{user.name}", overwrites=overwrites, category=category)
-            open_tickets[user.id] = channel.id
-
-            embed = discord.Embed(
-                title="📅 Support Ticket",
-                description=f"Hello {user.mention}, a staff member will be with you shortly.\nUse the buttons below to manage the ticket.",
-                color=0x3498db
-            )
-            await channel.send(content=user.mention, embed=embed, view=ManageTicketView())
-            await interaction.response.send_message(f"✅ Ticket created: {channel.mention}", ephemeral=True)
-        except Exception as e:
-            print(f"Error creating ticket: {e}")
-            await interaction.response.send_message("An error occurred while creating the ticket.", ephemeral=True)
+# Update the view to use the new button
+class TicketView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(CreateTicketButton())
 
 class ManageTicketView(View):
     def __init__(self):
