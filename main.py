@@ -42,7 +42,11 @@ class TicketView(View):
 
 class CreateTicketButton(Button):
     def __init__(self):
-        super().__init__(style=discord.ButtonStyle.primary, label="📩 Create ticket", custom_id="create_ticket")
+        super().__init__(
+            style=discord.ButtonStyle.primary,
+            label="📩 Create ticket",
+            custom_id="create_ticket"
+        )
 
     async def callback(self, interaction: discord.Interaction):
         try:
@@ -50,7 +54,59 @@ class CreateTicketButton(Button):
             guild = interaction.guild
 
             if user.id in open_tickets:
-                await interaction.response.send_message("You already have an open ticket!", ephemeral=True)
+                await interaction.response.send_message(
+                    "You already have an open ticket!", 
+                    ephemeral=True
+                )
+                return
+
+            # Check if category exists or create it
+            category = discord.utils.get(guild.categories, name=TICKET_CATEGORY_NAME)
+            if not category:
+                category = await guild.create_category(TICKET_CATEGORY_NAME)
+
+            # Set permissions
+            overwrites = {
+                guild.default_role: discord.PermissionOverwrite(view_channel=False),
+                user: discord.PermissionOverwrite(view_channel=True, send_messages=True),
+            }
+            mod_role = discord.utils.get(guild.roles, name=MOD_ROLE_NAME)
+            if mod_role:
+                overwrites[mod_role] = discord.PermissionOverwrite(
+                    view_channel=True, 
+                    send_messages=True
+                )
+
+            # Create the ticket channel
+            channel = await guild.create_text_channel(
+                name=f"ticket-{user.name}",
+                overwrites=overwrites,
+                category=category
+            )
+            open_tickets[user.id] = channel.id
+
+            # Send confirmation
+            embed = discord.Embed(
+                title="📅 Support Ticket",
+                description=f"Hello {user.mention}, staff will assist you shortly.",
+                color=0x3498db
+            )
+            await channel.send(
+                content=user.mention,
+                embed=embed,
+                view=ManageTicketView()
+            )
+            await interaction.response.send_message(
+                f"✅ Ticket created: {channel.mention}",
+                ephemeral=True
+            )
+
+        except Exception as e:
+            print(f"❌ TICKET ERROR: {e}")
+            await interaction.response.send_message(
+                "Failed to create ticket. The bot may lack permissions.",
+                ephemeral=True
+            )
                 return
 
             mod_role = discord.utils.get(guild.roles, name=MOD_ROLE_NAME)
