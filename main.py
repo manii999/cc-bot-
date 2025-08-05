@@ -291,44 +291,36 @@ class TicketView(View):
 
 class CreateTicketButton(Button):
     def __init__(self):
-        super().__init__(style=discord.ButtonStyle.primary, label="📩 Create ticket")
+        super().__init__(style=discord.ButtonStyle.primary, label="📩 Create ticket", custom_id="create_ticket")
 
     async def callback(self, interaction: discord.Interaction):
         user = interaction.user
         guild = interaction.guild
 
         if user.id in open_tickets:
-            await interaction.response.send_message("❌ You already have an open ticket!", ephemeral=True)
+            await interaction.response.send_message("You already have an open ticket!", ephemeral=True)
             return
 
         mod_role = discord.utils.get(guild.roles, name=MOD_ROLE_NAME)
-        category = discord.utils.get(guild.categories, name=TICKET_CATEGORY_NAME)
-
-        if not category:
-            category = await guild.create_category(TICKET_CATEGORY_NAME)
 
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(view_channel=False),
-            user: discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True),
+            user: discord.PermissionOverwrite(view_channel=True, send_messages=True),
         }
-
         if mod_role:
             overwrites[mod_role] = discord.PermissionOverwrite(view_channel=True, send_messages=True)
 
-        channel_name = f"ticket-{user.name.lower()}"
-        channel = await guild.create_text_channel(channel_name, overwrites=overwrites, category=category)
+        category = discord.utils.get(guild.categories, name=TICKET_CATEGORY_NAME)
+        if not category:
+            category = await guild.create_category(TICKET_CATEGORY_NAME)
+
+        channel = await guild.create_text_channel(f"ticket-{user.name}", overwrites=overwrites, category=category)
         open_tickets[user.id] = channel.id
 
-        embed = discord.Embed(
-            title="🎫 Support Ticket",
-            description=f"{user.mention}, a staff member will assist you shortly.\nUse the buttons below to manage this ticket.",
-            color=0x3498db
-        )
-
-        await channel.send(content=f"{user.mention}", embed=embed, view=ManageTicketView())
+        embed = discord.Embed(title="📅 Support Ticket", description=f"Hello {user.mention}, a staff member will be with you shortly.\nUse the buttons below to manage the ticket.", color=0x3498db)
+        await channel.send(content=user.mention, embed=embed, view=ManageTicketView())
         await interaction.response.send_message(f"✅ Ticket created: {channel.mention}", ephemeral=True)
 
-# -------------------- MANAGE VIEW --------------------
 class ManageTicketView(View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -337,34 +329,25 @@ class ManageTicketView(View):
 
 class CloseTicketButton(Button):
     def __init__(self):
-        super().__init__(style=discord.ButtonStyle.secondary, label="Close Ticket", emoji="🔒")
+        super().__init__(style=discord.ButtonStyle.secondary, label="Close Ticket", emoji="🔒", custom_id="close_ticket")
 
     async def callback(self, interaction: discord.Interaction):
         mod_role = discord.utils.get(interaction.guild.roles, name=MOD_ROLE_NAME)
-
         if mod_role not in interaction.user.roles:
-            await interaction.response.send_message("🚫 You don't have permission to close this ticket.", ephemeral=True)
+            await interaction.response.send_message("You don't have permission to close this ticket.", ephemeral=True)
             return
 
-        # Remove ticket creator's access
-        for uid, cid in open_tickets.items():
-            if cid == interaction.channel.id:
-                user = interaction.guild.get_member(uid)
-                if user:
-                    await interaction.channel.set_permissions(user, view_channel=False)
-                break
-
-        await interaction.response.send_message("🔒 Ticket closed. The user can no longer see this channel.", ephemeral=False)
+        await interaction.channel.set_permissions(interaction.channel.guild.default_role, view_channel=False)
+        await interaction.response.send_message("🔒 Ticket closed. Only MODs can access now.", ephemeral=False)
 
 class DeleteTicketButton(Button):
     def __init__(self):
-        super().__init__(style=discord.ButtonStyle.danger, label="Delete Ticket", emoji="❌")
+        super().__init__(style=discord.ButtonStyle.danger, label="Delete Ticket", emoji="❌", custom_id="delete_ticket")
 
     async def callback(self, interaction: discord.Interaction):
         mod_role = discord.utils.get(interaction.guild.roles, name=MOD_ROLE_NAME)
-
         if mod_role not in interaction.user.roles:
-            await interaction.response.send_message("🚫 You don't have permission to delete this ticket.", ephemeral=True)
+            await interaction.response.send_message("You don't have permission to delete this ticket.", ephemeral=True)
             return
 
         for uid, cid in list(open_tickets.items()):
@@ -372,28 +355,20 @@ class DeleteTicketButton(Button):
                 del open_tickets[uid]
                 break
 
-        await interaction.response.send_message("🗑️ Ticket will be deleted in 3 seconds...", ephemeral=True)
+        await interaction.response.send_message("Ticket will be deleted in 3 seconds...", ephemeral=True)
         await asyncio.sleep(3)
         await interaction.channel.delete()
 
-# -------------------- COMMAND --------------------
 @bot.command()
 @commands.has_role(MOD_ROLE_NAME)
 async def setup_ticket(ctx):
-    embed = discord.Embed(
-        title="💬 Support Ticket",
-        description="Click the button below to create a support ticket.\nA staff member will assist you shortly.",
-        color=0x2ecc71
-    )
-    embed.set_footer(text="Support System")
-
+    embed = discord.Embed(title="Support Ticket", description="Click below to create a support ticket 📩", color=0x2ecc71)
     await ctx.send(embed=embed, view=TicketView())
 
-# -------------------- READY --------------------
 @bot.event
 async def on_ready():
-    bot.add_view(TicketView())
-    bot.add_view(ManageTicketView())  # ❗ Needed to keep the buttons working after restart
+    bot.add_view(TicketView())  # Register the button view on startup
+    bot.add_view(ManageTicketView())
     print(f"🟢 Bot is online as {bot.user}")
 
 
