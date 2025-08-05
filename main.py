@@ -316,7 +316,11 @@ class CreateTicketButton(Button):
         channel = await guild.create_text_channel(channel_name, overwrites=overwrites, category=category)
         open_tickets[user.id] = channel.id
 
-        embed = discord.Embed(title="📅 Support Ticket", description=f"Hello {user.mention}, a staff member will be with you shortly.\nUse the buttons below to manage the ticket.", color=0x3498db)
+        embed = discord.Embed(
+            title="📅 Support Ticket",
+            description=f"Hello {user.mention}, a staff member will be with you shortly.\nUse the buttons below to manage the ticket.",
+            color=0x3498db
+        )
         await channel.send(content=f"{user.mention}", embed=embed, view=ManageTicketView())
 
         await interaction.response.send_message(f"✅ Ticket created: {channel.mention}", ephemeral=True)
@@ -338,7 +342,7 @@ class CloseTicketButton(Button):
             return
 
         await interaction.channel.set_permissions(interaction.channel.guild.default_role, view_channel=False)
-        await interaction.response.send_message("Ticket closed. You may now delete it.", ephemeral=False)
+        await interaction.response.send_message("🔒 Ticket closed. You may now delete it.", ephemeral=False)
 
 class DeleteTicketButton(Button):
     def __init__(self):
@@ -355,16 +359,28 @@ class DeleteTicketButton(Button):
                 del open_tickets[uid]
                 break
 
-        await interaction.response.send_message("Ticket will be deleted in 3 seconds...", ephemeral=True)
-        await discord.utils.sleep_until(discord.utils.utcnow() + discord.utils.timedelta(seconds=3))
+        await interaction.response.send_message("❌ Ticket will be deleted in 3 seconds...", ephemeral=True)
+        await asyncio.sleep(3)
         await interaction.channel.delete()
 
 @bot.command()
 @commands.has_role(MOD_ROLE_NAME)
 async def setup_ticket(ctx):
-    embed = discord.Embed(title="Support Ticket", description="To create a ticket react with 📩", color=0x2ecc71)
-    embed.set_footer(text="TicketTool.xyz - Ticketing without clutter", icon_url="https://cdn.discordapp.com/emojis/1125782920799826010.png")
+    embed = discord.Embed(
+        title="Support Ticket",
+        description="To create a ticket react with 📩",
+        color=0x2ecc71
+    )
+    embed.set_footer(
+        text="TicketTool.xyz - Ticketing without clutter",
+        icon_url="https://cdn.discordapp.com/emojis/1125782920799826010.png"
+    )
     await ctx.send(embed=embed, view=TicketView())
+
+@bot.event
+async def on_ready():
+    bot.add_view(TicketView())
+    print(f"🟢 Bot is online as {bot.user}")
 
 keep_alive()
 bot.run(os.getenv("DISCORD_BOT_TOKEN"))
