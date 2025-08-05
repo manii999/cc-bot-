@@ -116,20 +116,62 @@ class ManageTicketView(View):
 
 class CloseTicketButton(Button):
     def __init__(self):
-        super().__init__(style=discord.ButtonStyle.secondary, label="Close Ticket", emoji="🔒", custom_id="close_ticket")
+        super().__init__(
+            style=discord.ButtonStyle.secondary,
+            label="Close Ticket",
+            emoji="🔒",
+            custom_id="close_ticket_v2"  # Updated custom_id
+        )
 
     async def callback(self, interaction: discord.Interaction):
         try:
+            # Check MOD permissions
             mod_role = discord.utils.get(interaction.guild.roles, name=MOD_ROLE_NAME)
             if mod_role not in interaction.user.roles:
-                await interaction.response.send_message("You don't have permission to close this ticket.", ephemeral=True)
+                await interaction.response.send_message(
+                    "❌ You need MOD role to close tickets.",
+                    ephemeral=True
+                )
                 return
 
-            await interaction.channel.set_permissions(interaction.channel.guild.default_role, view_channel=False)
-            await interaction.response.send_message("🔒 Ticket closed. Only MODs can access now.", ephemeral=False)
+            # Get the ticket opener's username
+            opener = None
+            for uid, cid in list(open_tickets.items()):
+                if cid == interaction.channel.id:
+                    opener = interaction.guild.get_member(uid)
+                    break
+
+            # Rename channel to "closed-username"
+            if opener:
+                new_name = f"closed-{opener.name}"[:32]  # Discord channel names max 32 chars
+                try:
+                    await interaction.channel.edit(name=new_name)
+                except:
+                    new_name = f"closed-{opener.id}"  # Fallback to ID if name fails
+                    await interaction.channel.edit(name=new_name[:32])
+
+            # Lock the channel
+            await interaction.channel.set_permissions(
+                interaction.guild.default_role,
+                view_channel=False
+            )
+
+            # Update open_tickets dict
+            if opener and opener.id in open_tickets:
+                del open_tickets[opener.id]
+
+            await interaction.response.send_message(
+                f"🔒 Ticket closed by {interaction.user.mention}. "
+                f"Renamed to `{new_name}`.",
+                ephemeral=False
+            )
+
         except Exception as e:
-            print(f"Error closing ticket: {e}")
-            await interaction.response.send_message("An error occurred while closing the ticket.", ephemeral=True)
+            print(f"CLOSE TICKET ERROR: {e}")
+            await interaction.response.send_message(
+                "❌ Failed to close ticket. Please try again.",
+                ephemeral=True
+            )
 
 class DeleteTicketButton(Button):
     def __init__(self):
