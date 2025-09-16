@@ -381,6 +381,34 @@ async def newlist(ctx):
     list_message_id = sent.id
     await ctx.send("✅ New registration list created.")
     await ctx.message.delete()
+    
+@bot.command()
+@commands.has_role("MOD")
+async def setslots(ctx, number: int):
+    global MAX_SLOTS, registered_users, list_message_id
+
+    if number < 1 or number > 100:
+        await ctx.send("❌ Please choose a number between 1 and 100.")
+        return
+
+    MAX_SLOTS = number
+
+    # Reset current list when slots change
+    registered_users = {}
+    content = "**Registered Users:**\n"
+    for i in range(1, MAX_SLOTS + 1):
+        content += f"{i}.\n"
+
+    channel = discord.utils.get(ctx.guild.text_channels, name=CHANNEL_NAME)
+    if not channel:
+        await ctx.send("❌ Channel not found.")
+        return
+
+    sent = await channel.send(content)
+    list_message_id = sent.id
+
+    await ctx.send(f"✅ Registration slots updated to **{MAX_SLOTS}**. A new list has been created.")
+    await ctx.message.delete()
 
 @bot.command()
 @commands.has_role("MOD")
