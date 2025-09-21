@@ -265,6 +265,10 @@ async def register(ctx):
 @bot.command()
 async def unregister(ctx, member: discord.Member = None):
     global list_message_id
+    
+    if ctx.channel.name != "〘✍〙⪼registration":
+        await ctx.send("❌ You can only use this command in 〘✍〙⪼registration.")
+        return
 
     guild = ctx.guild
 
