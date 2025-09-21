@@ -207,7 +207,7 @@ async def register(ctx):
     global list_message_id
     
     if ctx.channel.name != "〘✍〙⪼registration":
-        await ctx.send("❌ You can only use this command in #〘✍〙⪼registration.")
+        await ctx.send("❌ You can only use this command in <#1386727438293139638>")
         return
         
     guild = ctx.guild
